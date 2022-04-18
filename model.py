@@ -39,7 +39,7 @@ class TNet(nn.Module):
         self.layer5 = nn.Sequential(nn.Linear(512, 256), nn.BatchNorm1d(512), nn.ReLU())
         #TODO
         # fc 256 -> k*k (no batchnorm, no relu)
-        self.layer6 = nn.Sequential(nn.Linear(256, (self.k * self.k)), nn.BatchNorm1d(512), nn.ReLU())
+        self.layer6 = nn.Linear(256, (self.k * self.k))
         #TODO
         # ReLU activationfunction
         self.relu = nn.ReLU()
@@ -94,22 +94,26 @@ class PointNetfeat(nn.Module):
 
         #TODO
         # Use TNet to apply transformation on input and multiply the input points with the transformation
+        self.input_trans = TNet(3)
 
         #TODO
         # layer 1:3 -> 64
-
+        self.layer1 = nn.Sequential(nn.Conv1d(3,64,1), nn.BatchNorm1d(64), nn.ReLU())
         #TODO
         # Use TNet to apply transformation on features and multiply the input features with the transformation 
         #                                                                        (if feature_transform is true)
-
+        self.mid_transform = TNet()
         #TODO
         # layer2: 64 -> 128
+        self.layer2 = nn.Sequential(nn.Conv1d(64,128,1), nn.BatchNorm1d(128), nn.ReLU())
 
         #TODO
         # layer 3: 128 -> 1024 (no relu)
+        self.layer1 = nn.Sequential(nn.conv1d(128,1024,1), nn.BatchNorm1d(128))
 
         #TODO
         # ReLU activation
+        self.relu = nn.ReLU()
 
 
 
@@ -218,7 +222,7 @@ def feature_transform_regularizer(trans):
     # compute I - AA^t
     identity = torch.eye(feature_size)
     a_at = torch.bmm(trans, trans.transpose(2,1))
-    x = a_at = identity
+    x = a_at + identity
     #TODO
     # compute norm
     norm = torch.norm(x,dim = (1,2))
