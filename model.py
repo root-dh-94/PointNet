@@ -20,60 +20,69 @@ class TNet(nn.Module):
         # Each layer has batchnorm and relu on it
         #TODO
         # layer 1: k -> 64
+        self.layer1 = nn.Sequential(nn.Conv1d(self.k,64,1), nn.BatchNorm1d(64), nn.ReLU())
 
         #TODO
         # layer 2:  64 -> 128
+        self.layer2 = nn.Sequential(nn.Conv1d(64,128,1), nn.BatchNorm1d(128), nn.ReLU())
 
         #TODO
         # layer 3: 128 -> 1024
+        self.layer3 = nn.Sequential(nn.Conv1d(128,1024,1), nn.BatchNorm1d(1024), nn.ReLU())
 
         #TODO
         # fc 1024 -> 512
+        self.layer4 = nn.Sequential(nn.Linear(1024,512), nn.BatchNorm1d(512), nn.ReLU())
 
         #TODO
         # fc 512 -> 256
-
+        self.layer5 = nn.Sequential(nn.Linear(512, 256), nn.BatchNorm1d(512), nn.ReLU())
         #TODO
         # fc 256 -> k*k (no batchnorm, no relu)
-
+        self.layer6 = nn.Sequential(nn.Linear(256, (self.k * self.k)), nn.BatchNorm1d(512), nn.ReLU())
         #TODO
         # ReLU activationfunction
-
+        self.relu = nn.ReLU()
 
     def forward(self, x):
         batch_size, _, num_points = x.shape
         #TODO
         # apply layer 1
-
+        x = self.layer1(x)
         #TODO
         # apply layer 2
-
+        x = self.layer2(x)
         #TODO
         # apply layer 3
+        x = self.layer3(x)
 
         #TODO
         # do maxpooling and flatten
-
+        x = nn.MaxPool1d(1)
+        f = nn.Flatten()
+        x = f(x)
 
         #TODO
         # apply fc layer 1
-
+        x = self.layer5(x)
         #TODO
         # apply fc layer 2
-
+        x = self.layer6(x)
         #TODO
         # apply fc layer 3
-
+        x = self.layer7(x)
         #TODO
         #reshape output to a b*k*k tensor
-
+        x = x.view(batch_size, self.k, self.k)
         #TODO
         # define an identity matrix to add to the output. This will help with the stability of the results since we want our transformations to be close to identity
-
+        identity = torch.eye(self.k)
+        identity = identity.unsqueeze(0).repeat(batch_size, 1, 1)
+        output = x + identity
 
         #TODO
         # return output
-
+        return output
 
 
 class PointNetfeat(nn.Module):
