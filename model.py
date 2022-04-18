@@ -216,12 +216,17 @@ def feature_transform_regularizer(trans):
     batch_size, feature_size, _ = trans.shape
     #TODO
     # compute I - AA^t
-
+    identity = torch.eye(feature_size)
+    a_at = torch.bmm(trans, trans.transpose(2,1))
+    x = a_at = identity
     #TODO
     # compute norm
-
+    norm = torch.norm(x,dim = (1,2))
     #TODO
     # compute mean norms and return
+    mean = torch.mean(norm)
+
+    return mean
 
 
 
