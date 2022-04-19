@@ -81,6 +81,34 @@ for epoch in range(opt.nepoch):
         points, target = points.cuda(), target.cuda()
         #TODO
         # perform forward and backward paths, optimize network
+        optimizer.zero_grad()
+        pred, input_mat, feat_mat = classifier(points)
+        loss = classifier_loss(pred, target)
+
+        if opt.feature_transform:
+            loss = loss + .001 * feature_transform_regularizer(feat_mat)
+        loss += loss.item()
+        loss.backward()
+        optimizer.step()
+
+        pred_choice = pred.data.max(1)[1]
+        pred_np = pred_choice.cpu().data.numpy()
+        target_np = target.cpu().data.numpy() - 1
+
+        for shape_idx in range(target_np.shape[0]):
+                parts = range(num_classes)#np.unique(target_np[shape_idx])
+                part_ious = []
+                for part in parts:
+                    I = np.sum(np.logical_and(pred_np[shape_idx] == part, target_np[shape_idx] == part))
+                    U = np.sum(np.logical_or(pred_np[shape_idx] == part, target_np[shape_idx] == part))
+                    if U == 0:
+                        iou = 1 #If the union of groundtruth and prediction points is empty, then count part IoU as 1
+                    else:
+                        iou = I / float(U)
+                    part_ious.append(iou)
+                shape_ious.append(np.mean(part_ious))
+    print("mIOU for class {}: {:.4f}".format(opt.class_choice, np.mean(shape_ious)))
+
 
     torch.save({'model':classifier.state_dict(),
                 'optimizer': optimizer.state_dict(),
