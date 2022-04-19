@@ -10,6 +10,23 @@ from torch.autograd import Variable
 import numpy as np
 import torch.nn.functional as F
 
+def feature_transform_regularizer(trans):
+
+    batch_size, feature_size, _ = trans.shape
+    #TODO
+    # compute I - AA^t
+    identity = torch.eye(feature_size)
+    a_at = torch.bmm(trans, trans.transpose(2,1))
+    x = a_at + identity
+    #TODO
+    # compute norm
+    norm = torch.norm(x,dim = (1,2))
+    #TODO
+    # compute mean norms and return
+    mean = torch.mean(norm)
+
+    return mean
+
 
 class TNet(nn.Module):
     def __init__(self, k=64):
@@ -152,8 +169,6 @@ class PointNetfeat(nn.Module):
         output = pool(x)
         output = output.view(batch_size,1024)
 
-
-
         #TODO
         # return output, input transformation matrix, feature transformation matrix
         if self.global_feat: # This shows if we're doing classification or segmentation
@@ -194,21 +209,25 @@ class PointNetDenseCls(nn.Module):
         super(PointNetDenseCls, self).__init__()
         #TODO
         # get global features + point features from PointNetfeat
-
+        self.num_classes = num_classes
+        self.feature_transform = feature_transform
+        self.feat = PointNetfeat(global_feat=False, feature_transform=feature_transform)
         #TODO
         # layer 1: 1088 -> 512
+        self.layer1 = nn.Sequential(nn.Conv1d(1088,512,1), nn.BatchNorm1d(512), nn.ReLU())
 
         #TODO
         # layer 2: 512 -> 256
-
+        self.layer2 = nn.Sequential(nn.Conv1d(512,256,1), nn.BatchNorm1d(256), nn.ReLU())
         #TODO
         # layer 3: 256 -> 128
-
+        self.layer3 = nn.Sequential(nn.Conv1d(256,128,1), nn.BatchNorm1d(128), nn.ReLU())
         #TODO
         # layer 4:  128 -> k (no ru and batch norm)
-
+        self.layer4 = nn.Conv1d(128,self.num_classes,1)
         #TODO
         # ReLU activation
+        self.relu = nn.ReLU()
 
 
     
@@ -218,41 +237,24 @@ class PointNetDenseCls(nn.Module):
         # trans = output of applying TNet function to input
         # trans_feat = output of applying TNet function to features (if feature_transform is true)
         # (you can directly get them from PointNetfeat)
-
+        x, trans, trans_feat = self.feat(x)
 
         #TODO
         # apply layer 1
-
+        x = self.layer1(x)
         #TODO
         # apply layer 2
-
+        x = self.layer2(x)
         #TODO
         # apply layer 3
-
+        x = self.layer3(x)
         #TODO
         # apply layer 4
+        x = self.layer4(x)
 
         #TODO
         # apply log-softmax
-
-
-def feature_transform_regularizer(trans):
-
-    batch_size, feature_size, _ = trans.shape
-    #TODO
-    # compute I - AA^t
-    identity = torch.eye(feature_size)
-    a_at = torch.bmm(trans, trans.transpose(2,1))
-    x = a_at + identity
-    #TODO
-    # compute norm
-    norm = torch.norm(x,dim = (1,2))
-    #TODO
-    # compute mean norms and return
-    mean = torch.mean(norm)
-
-    return mean
-
+        return F.log_softmax(x, dim=1), trans, trans_feat
 
 
 if __name__ == '__main__':
