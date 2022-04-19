@@ -41,3 +41,16 @@ with torch.no_grad():
     for i, data in enumerate(test_dataloader, 0):
         #TODO
         # calculate average classification accuracy
+        points, target = data
+        target = target[:, 0]
+        points = points.transpose(2, 1)
+        points, target = points.cuda(), target.cuda()
+
+        preds, _, _ = classifier(points)
+        pred_labels = torch.max(preds, dim= 1)[1]
+
+        total_preds = np.concatenate([total_preds, pred_labels.cpu().numpy()])
+        total_targets = np.concatenate([total_targets, target.cpu().numpy()])
+        a = 0
+    accuracy = 100 * (total_targets == total_preds).sum() / len(test_dataset)
+    print('Accuracy = {:.2f}%'.format(accuracy))
