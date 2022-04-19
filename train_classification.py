@@ -92,7 +92,7 @@ for epoch in range(opt.nepoch):
         # perform forward and backward paths, optimize network
         optimizer.zero_grad()
         pred, input_mat, feat_mat = classifier(points)
-        loss = F.nll_loss(pred, target)
+        loss = nn.NLLLoss(pred, target)
 
         if opt.feature_transform:
             loss = loss + .001 * feature_transform_regularizer(feat_mat)
