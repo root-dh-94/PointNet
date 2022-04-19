@@ -58,9 +58,9 @@ class TNet(nn.Module):
 
         #TODO
         # do maxpooling and flatten
-        x = nn.MaxPool1d(1)
+        pool = nn.MaxPool1d(1)
         f = nn.Flatten()
-        x = f(x)
+        x = f(pool(x))
 
         #TODO
         # apply fc layer 1
@@ -109,7 +109,7 @@ class PointNetfeat(nn.Module):
 
         #TODO
         # layer 3: 128 -> 1024 (no relu)
-        self.layer1 = nn.Sequential(nn.conv1d(128,1024,1), nn.BatchNorm1d(128))
+        self.layer3 = nn.Sequential(nn.conv1d(128,1024,1), nn.BatchNorm1d(1024))
 
         #TODO
         # ReLU activation
@@ -121,30 +121,51 @@ class PointNetfeat(nn.Module):
         batch_size, _, num_points = x.shape
         #TODO
         # input transformation, you will need to return the transformation matrix as you will need it for the regularization loss
-
+        in_trans = self.input_trans(x)
+        x = x.transpose(2,1)
+        x = torch.bmm(x, in_trans)
+        x = x.transpose(2,1)
         #TODO
         # apply layer 1
-
+        x = self.layer1(x)
         #TODO
         # feature transformation, you will need to return the transformation matrix as you will need it for the regularization loss
-
+        if self.feature_transform:
+            feat_trans = self.mid_transform(x)
+            x = x.transpose(2,1)
+            x = torch.bmm(x, feat_trans)
+            x = x.transpose(2,1)
+        else:
+            feat_trans = None
+        
+        features = x
         #TODO
         # apply layer 2
+        output = self.layer2(features)
 
         #TODO
         # apply layer 3
-
+        output = self.layer3(output)
         #TODO
         # apply maxpooling
+        pool = nn.MaxPool1d(1)
+        output = pool(x)
+        output = output.view(batch_size,1024)
+
 
 
         #TODO
         # return output, input transformation matrix, feature transformation matrix
         if self.global_feat: # This shows if we're doing classification or segmentation
             if self.feature_transform:
+                return output, in_trans, feat_trans
 
         else:
             if self.feature_transform:
+                output = output.unsqueeze(2)
+                output = output.repeat(1, 1, num_points)
+                output = torch.cat((output, features), 1)
+                return output, in_trans, feat_trans
 
 
 class PointNetCls(nn.Module):
