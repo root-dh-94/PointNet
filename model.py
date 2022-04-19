@@ -75,19 +75,20 @@ class TNet(nn.Module):
 
         #TODO
         # do maxpooling and flatten
-        pool = nn.MaxPool1d(1)
+        pool = nn.MaxPool1d(num_points)
         f = nn.Flatten()
-        x = f(pool(x))
+        x = pool(x)
+        x = f(x)
 
         #TODO
         # apply fc layer 1
-        x = self.layer5(x)
+        x = self.layer4(x)
         #TODO
         # apply fc layer 2
-        x = self.layer6(x)
+        x = self.layer5(x)
         #TODO
         # apply fc layer 3
-        x = self.layer7(x)
+        x = self.layer6(x)
         #TODO
         #reshape output to a b*k*k tensor
         x = x.view(batch_size, self.k, self.k)
