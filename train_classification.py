@@ -77,13 +77,13 @@ optimizer = optim.Adam(classifier.parameters(), lr=0.001, betas=(0.9, 0.999))
 classifier.cuda()
 
 num_batch = len(dataloader)
-
 for epoch in range(opt.nepoch):
     classifier.train()
-    batches = 0
-    loss = 0
+    total_preds = []
+    total_targets = []
+
     for i, data in enumerate(tqdm(dataloader, desc='Batches', leave = False), 0):
-        batches += 1
+        
         points, target = data
         target = target[:, 0]
         points = points.transpose(2, 1)
@@ -91,12 +91,12 @@ for epoch in range(opt.nepoch):
         #TODO
         # perform forward and backward paths, optimize network
         optimizer.zero_grad()
-        pred, input_mat, feat_mat = classifier(points)
-        loss = nn.NLLLoss(pred, target)
+        preds, input_mat, feat_mat,indeces = classifier(points)
+        loss = F.nll_loss(preds, target)
 
         if opt.feature_transform:
             loss = loss + .001 * feature_transform_regularizer(feat_mat)
-        loss += loss.item()
+    
         loss.backward()
         optimizer.step()
         pred_labels = torch.max(preds, dim= 1)[1]
@@ -105,13 +105,13 @@ for epoch in range(opt.nepoch):
         a = 0
     accuracy = 100 * (total_targets == total_preds).sum() / len(dataset)
     
-    print('Epoch: %d, Loss: %.2f' % (epoch, loss/batches))
+    print(epoch)
     print('Accuracy = {:.2f}%'.format(accuracy))
     
 
     torch.save({'model':classifier.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                'epoch': epoch}, os.path.join(opt.save_dir, 'latest_classification.pt'))
+                'epoch': epoch}, os.path.join(opt.save_dir, 'latest_classification_index_nofeat.pt'))
 
     classifier.eval()
     total_preds = []
@@ -123,7 +123,7 @@ for epoch in range(opt.nepoch):
             points = points.transpose(2, 1)
             points, target = points.cuda(), target.cuda()
 
-            preds, _, _ = classifier(points)
+            preds, _, _,_ = classifier(points)
             pred_labels = torch.max(preds, dim= 1)[1]
 
             total_preds = np.concatenate([total_preds, pred_labels.cpu().numpy()])

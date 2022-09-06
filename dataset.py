@@ -117,7 +117,7 @@ class ShapeNetDataset(data.Dataset):
         point_set = torch.from_numpy(point_set)
         seg = torch.from_numpy(seg)
         cls = torch.from_numpy(np.array([cls]).astype(np.int64))
-
+        seg=seg-1
         if self.classification:
             return point_set, cls
         else:

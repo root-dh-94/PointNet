@@ -17,7 +17,7 @@ def feature_transform_regularizer(trans):
     # compute I - AA^t
     identity = torch.eye(feature_size)
     a_at = torch.bmm(trans, trans.transpose(2,1))
-    x = a_at + identity
+    x = a_at - identity.cuda()
     #TODO
     # compute norm
     norm = torch.norm(x,dim = (1,2))
@@ -53,7 +53,7 @@ class TNet(nn.Module):
 
         #TODO
         # fc 512 -> 256
-        self.layer5 = nn.Sequential(nn.Linear(512, 256), nn.BatchNorm1d(512), nn.ReLU())
+        self.layer5 = nn.Sequential(nn.Linear(512, 256), nn.BatchNorm1d(256), nn.ReLU())
         #TODO
         # fc 256 -> k*k (no batchnorm, no relu)
         self.layer6 = nn.Linear(256, (self.k * self.k))
@@ -79,7 +79,8 @@ class TNet(nn.Module):
         f = nn.Flatten()
         x = pool(x)
         x = f(x)
-
+        #x = f(pool(x))
+        
         #TODO
         # apply fc layer 1
         x = self.layer4(x)
@@ -96,7 +97,7 @@ class TNet(nn.Module):
         # define an identity matrix to add to the output. This will help with the stability of the results since we want our transformations to be close to identity
         identity = torch.eye(self.k)
         identity = identity.unsqueeze(0).repeat(batch_size, 1, 1)
-        output = x + identity
+        output = x + identity.cuda()
 
         #TODO
         # return output
@@ -127,7 +128,7 @@ class PointNetfeat(nn.Module):
 
         #TODO
         # layer 3: 128 -> 1024 (no relu)
-        self.layer3 = nn.Sequential(nn.conv1d(128,1024,1), nn.BatchNorm1d(1024))
+        self.layer3 = nn.Sequential(nn.Conv1d(128,1024,1), nn.BatchNorm1d(1024))
 
         #TODO
         # ReLU activation
@@ -148,6 +149,7 @@ class PointNetfeat(nn.Module):
         x = self.layer1(x)
         #TODO
         # feature transformation, you will need to return the transformation matrix as you will need it for the regularization loss
+        #this block of code(specifically returning 'None' adapted from https://github.com/fxia22/pointnet.pytorch/blob/master/pointnet/model.py#L35
         if self.feature_transform:
             feat_trans = self.mid_transform(x)
             x = x.transpose(2,1)
@@ -166,26 +168,33 @@ class PointNetfeat(nn.Module):
         output = self.layer3(output)
         #TODO
         # apply maxpooling
-        pool = nn.MaxPool1d(1)
-        output = pool(x)
+        pool = nn.MaxPool1d(num_points, return_indices=True)
+        output,indeces = pool(output)
         output = output.view(batch_size,1024)
 
         #TODO
         # return output, input transformation matrix, feature transformation matrix
         if self.global_feat: # This shows if we're doing classification or segmentation
             if self.feature_transform:
-                return output, in_trans, feat_trans
+                return output, in_trans, feat_trans, indeces
+            else:
+                return output, in_trans, feat_trans, indeces
 
         else:
             if self.feature_transform:
                 output = output.unsqueeze(2)
                 output = output.repeat(1, 1, num_points)
                 output = torch.cat((output, features), 1)
-                return output, in_trans, feat_trans
+                return output, in_trans, feat_trans,indeces
+            else:
+                output = output.unsqueeze(2)
+                output = output.repeat(1, 1, num_points)
+                output = torch.cat((output, features), 1)
+                return output, in_trans, feat_trans,indeces
 
 
 class PointNetCls(nn.Module):
-    def __init__(self, num_classes = 2, feature_transform=False):
+    def __init__(self, num_classes = 2, feature_transform=True):
         super(PointNetCls, self).__init__()
         self.feature_transform = feature_transform
         self.feat = PointNetfeat(global_feat=True, feature_transform=feature_transform)
@@ -198,11 +207,11 @@ class PointNetCls(nn.Module):
         self.relu = nn.ReLU()
 
     def forward(self, x):
-        x, trans, trans_feat = self.feat(x)
+        x, trans, trans_feat,indeces = self.feat(x)
         x = F.relu(self.bn1(self.fc1(x)))
         x = F.relu(self.bn2(self.dropout(self.fc2(x))))
         x = self.fc3(x)
-        return F.log_softmax(x, dim=1), trans, trans_feat
+        return F.log_softmax(x, dim=1), trans, trans_feat, indeces
 
 
 class PointNetDenseCls(nn.Module):
@@ -238,8 +247,7 @@ class PointNetDenseCls(nn.Module):
         # trans = output of applying TNet function to input
         # trans_feat = output of applying TNet function to features (if feature_transform is true)
         # (you can directly get them from PointNetfeat)
-        x, trans, trans_feat = self.feat(x)
-
+        x, trans, trans_feat,indeces = self.feat(x)
         #TODO
         # apply layer 1
         x = self.layer1(x)
@@ -255,7 +263,9 @@ class PointNetDenseCls(nn.Module):
 
         #TODO
         # apply log-softmax
-        return F.log_softmax(x, dim=1), trans, trans_feat
+        x = F.log_softmax(x, dim=1)
+        return x, trans, trans_feat,indeces
+        #return F.log_softmax(x, dim=1), trans, trans_feat
 
 
 if __name__ == '__main__':
@@ -264,7 +274,7 @@ if __name__ == '__main__':
     out = trans(sim_data)
     print('TNet', out.size())
     print('loss', feature_transform_regularizer(out))
-
+    
     sim_data_64d = Variable(torch.rand(32, 64, 2500))
     trans = TNet(k=64)
     out = trans(sim_data_64d)
@@ -272,18 +282,18 @@ if __name__ == '__main__':
     print('loss', feature_transform_regularizer(out))
 
     pointfeat = PointNetfeat(global_feat=True)
-    out, _, _ = pointfeat(sim_data)
+    out, _, _= pointfeat(sim_data)
     print('global feat', out.size())
-
+    
     pointfeat = PointNetfeat(global_feat=False)
-    out, _, _ = pointfeat(sim_data)
+    out, _, _,_ = pointfeat(sim_data)
     print('point feat', out.size())
-
+    
     cls = PointNetCls(num_classes = 5)
     out, _, _ = cls(sim_data)
     print('class', out.size())
-
+    
     seg = PointNetDenseCls(num_classes = 3)
-    out, _, _ = seg(sim_data)
+    out, _, _,_ = seg(sim_data)
     print('seg', out.size())
 

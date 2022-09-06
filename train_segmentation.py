@@ -16,12 +16,12 @@ import numpy as np
 parser = argparse.ArgumentParser()
 parser.add_argument('--batchSize', type=int, default=8, help='input batch size')
 parser.add_argument('--workers', type=int, help='number of data loading workers', default=4)
-parser.add_argument('--nepoch', type=int, default=25, help='number of epochs to train for')
+parser.add_argument('--nepoch', type=int, default=35, help='number of epochs to train for')
 parser.add_argument('--model', type=str, default='', help='model path')
 parser.add_argument('--outf', type=str, default='seg', help='output folder')
 parser.add_argument('--dataset', type=str, required=True, help="dataset path")
 parser.add_argument('--class_choice', type=str, default='Chair', help="class_choice")
-parser.add_argument('--feature_transform', default='True', help="use feature transform")
+parser.add_argument('--feature_transform', default=True, help="use feature transform")
 parser.add_argument('--save_dir', default='../pretrained_networks', help='directory to save model weights')
 
 opt = parser.parse_args()
@@ -74,7 +74,7 @@ num_batch = len(dataloader)
 
 for epoch in range(opt.nepoch):
     classifier.train()
-
+    shape_ious = []
     for i, data in enumerate(tqdm(dataloader, desc='Batches', leave = False), 0):
         points, target = data
         points = points.transpose(2, 1)
@@ -82,18 +82,17 @@ for epoch in range(opt.nepoch):
         #TODO
         # perform forward and backward paths, optimize network
         optimizer.zero_grad()
-        pred, input_mat, feat_mat = classifier(points)
+        pred, input_mat, feat_mat, indeces= classifier(points)
         loss = classifier_loss(pred, target)
 
         if opt.feature_transform:
             loss = loss + .001 * feature_transform_regularizer(feat_mat)
-        loss += loss.item()
         loss.backward()
         optimizer.step()
 
         pred_choice = pred.data.max(1)[1]
         pred_np = pred_choice.cpu().data.numpy()
-        target_np = target.cpu().data.numpy() - 1
+        target_np = target.cpu().data.numpy()
 
         for shape_idx in range(target_np.shape[0]):
                 parts = range(num_classes)#np.unique(target_np[shape_idx])
@@ -107,12 +106,14 @@ for epoch in range(opt.nepoch):
                         iou = I / float(U)
                     part_ious.append(iou)
                 shape_ious.append(np.mean(part_ious))
+        
+    print(epoch)
     print("mIOU for class {}: {:.4f}".format(opt.class_choice, np.mean(shape_ious)))
 
 
     torch.save({'model':classifier.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                'epoch': epoch}, os.path.join(opt.save_dir, 'latest_segmentation.pt'))
+                'epoch': epoch}, os.path.join(opt.save_dir, 'latest_segmentation_plane_feat.pt'))
 
 
 ## benchmark mIOU
@@ -123,11 +124,11 @@ for epoch in range(opt.nepoch):
             points, target = data
             points = points.transpose(2, 1)
             points, target = points.cuda(), target.cuda()
-            pred, _, _ = classifier(points)
+            pred, _, _, indeces = classifier(points)
             pred_choice = pred.data.max(1)[1]
 
             pred_np = pred_choice.cpu().data.numpy()
-            target_np = target.cpu().data.numpy() - 1
+            target_np = target.cpu().data.numpy()
 
             for shape_idx in range(target_np.shape[0]):
                 parts = range(num_classes)#np.unique(target_np[shape_idx])

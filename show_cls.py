@@ -7,18 +7,22 @@ from torch.autograd import Variable
 from dataset import ShapeNetDataset
 from model import PointNetCls
 import torch.nn.functional as F
-
+#Uncomment line below to run critical point visualization
+#from show3d_balls import showpoints
 import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--model', type=str, default = '',  help='model path')
 parser.add_argument('--num_points', type=int, default=2500, help='input batch size')
+parser.add_argument('--idx', type=int, default=1, help='index  of crticial visualization')
+
 
 opt = parser.parse_args()
 print(opt)
-
+idx = opt.idx
 test_dataset = ShapeNetDataset(
-    root='../shapenet_data/shapenetcore_partanno_segmentation_benchmark_v0',
+    #root='../shapenet_data/shapenetcore_partanno_segmentation_benchmark_v0',
+    root='../shapenetcore_partanno_segmentation_benchmark_v0',
     classification=True,
     split='test',
     npoints=2500)
@@ -46,7 +50,7 @@ with torch.no_grad():
         points = points.transpose(2, 1)
         points, target = points.cuda(), target.cuda()
 
-        preds, _, _ = classifier(points)
+        preds, _, _,_= classifier(points)
         pred_labels = torch.max(preds, dim= 1)[1]
 
         total_preds = np.concatenate([total_preds, pred_labels.cpu().numpy()])
@@ -54,3 +58,17 @@ with torch.no_grad():
         a = 0
     accuracy = 100 * (total_targets == total_preds).sum() / len(test_dataset)
     print('Accuracy = {:.2f}%'.format(accuracy))
+
+points, target = test_dataset[idx]
+point_np = points.numpy()
+
+points = points.transpose(1, 0).contiguous()
+points = Variable(points.view(1, points.size()[0], points.size()[1]))
+points = points.cuda()
+preds, _, _, indeces = classifier(points)
+indeces = indeces.squeeze(0).squeeze(1).cpu().tolist()
+critical_points = point_np[indeces]
+#uncomment line below to run critical point visualization
+#showpoints(critical_points, None, None)
+
+

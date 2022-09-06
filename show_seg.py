@@ -17,8 +17,8 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument('--model', type=str, default='../pretrained_networks/latest_segmentation.pt', help='model path')
 parser.add_argument('--idx', type=int, default=1, help='model index')
-parser.add_argument('--dataset', type=str, default='../shapenet_data/shapenetcore_partanno_segmentation_benchmark_v0', help='dataset path')
-parser.add_argument('--class_choice', type=str, default='Airplane', help='class choice')
+parser.add_argument('--dataset', type=str, default='../shapenetcore_partanno_segmentation_benchmark_v0', help='dataset path')
+parser.add_argument('--class_choice', type=str, default='Chair', help='class choice')
 
 opt = parser.parse_args()
 print(opt)
@@ -41,19 +41,24 @@ cmap = np.array([cmap(i) for i in range(10)])[:, :3]
 gt = cmap[seg.numpy() - 1, :]
 
 state_dict = torch.load(opt.model)
-classifier = PointNetDenseCls(num_classes= state_dict['model']['mlp4.weight'].size()[0], feature_transform=True)
+#classifier = PointNetDenseCls(num_classes= state_dict['model']['mlp4.weight'].size()[0], feature_transform=True)
+classifier = PointNetDenseCls(num_classes= 4, feature_transform=True)
+classifier.cuda()
+
 classifier.load_state_dict(state_dict['model'])
 classifier.eval()
 
 point = point.transpose(1, 0).contiguous()
 
 point = Variable(point.view(1, point.size()[0], point.size()[1]))
-pred, _, _ = classifier(point)
+point = point.cuda()
+pred, _, _, indeces= classifier(point)
 pred_choice = pred.data.max(dim=1)[1]
 print(pred_choice)
-
-#print(pred_choice.size())
-pred_color = cmap[pred_choice.numpy()[0], :]
-
-#print(pred_color.shape)
+print(pred_choice.size())
+#indeces = indeces.squeeze(0).squeeze(1).cpu().tolist()
+#critical_points= point_np[indeces]
+pred_color = cmap[pred_choice.cpu().numpy()[0], :]
+#showpoints(critical_points, None,None)
+print(pred_color.shape)
 showpoints(point_np, gt, pred_color)
